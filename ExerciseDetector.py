@@ -59,6 +59,11 @@ def getEdges(result):
             elbow.z - wrist.z
         )
         edges.append(lForearm)
+        leftEdge = (
+        wrist.x - shoulder.x,
+        wrist.y - shoulder.y,
+        wrist.z - shoulder.z
+        )
         
         shoulder = landmarks[rShoulder]
         elbow = landmarks[rElbow]
@@ -75,6 +80,14 @@ def getEdges(result):
             elbow.z - wrist.z
         )
         edges.append(rForearm)
+        rightEdge = (
+        wrist.x - shoulder.x,
+        wrist.y - shoulder.y,
+        wrist.z - shoulder.z
+        )
+
+        edges.append(leftEdge)
+        edges.append(rightEdge)
         return edges
     return None
 
@@ -88,14 +101,14 @@ def detectPushup(result):
     rightElbow = angles[1]
 
     
-    if leftElbow >= 160 and rightElbow >= 160:
+    if leftElbow >= 150 or rightElbow >= 150:
         if state == "down":
             pushupCount += 1
             state = "up"
         elif state != "up":
             state = "up"
     #down state
-    elif leftElbow <= 90 and rightElbow <= 90:
+    elif leftElbow < 90 and rightElbow < 90:
         if state == "up":
             state = "down"
     
@@ -114,20 +127,8 @@ def getAngles(result: PoseLandmarkerResult):
     #law of cosine
     landmarks = result.pose_landmarks[0]
     
-    shoulder = landmarks[lShoulder]
-    wrist = landmarks[lWrist]
-    leftEdge = (
-        wrist.x - shoulder.x,
-        wrist.y - shoulder.y,
-        wrist.z - shoulder.z
-    )
-    shoulder = landmarks[rShoulder]
-    wrist = landmarks[rWrist]
-    rightEdge = (
-        wrist.x - shoulder.x,
-        wrist.y - shoulder.y,
-        wrist.z - shoulder.z
-    )
+    leftEdge = edges[4]
+    rightEdge = edges[5]
 
     #left elbow angle
     leftEdgeMag = np.linalg.norm(leftEdge)
@@ -202,29 +203,27 @@ options = PoseLandmarkerOptions(
   # The landmarker is initialized. Use it here.
   # ...
 
-
+frame_count = 0
 with PoseLandmarker.create_from_options(options) as landmarker:
     cap = cv2.VideoCapture(0) # 0 for default webcam
+    cap.set(cv2.CAP_PROP_FPS, 15)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 400)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         frame = cv2.flip(frame, 1)  # Flip the frame horizontally if needed
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-        frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-        
-        landmarker.detect_async(mp_image, frame_timestamp_ms)
-        #cv2.imshow("Video", frame)
-        
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     break
-        
+        frame_count += 1
+        if frame_count % 2 == 0:
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+            frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
+            landmarker.detect_async(mp_image, frame_timestamp_ms)
         # Show the latest annotated frame if available
         if latest_annotated_frame is not None:
             cv2.imshow("Video", latest_annotated_frame)
         else:
             cv2.imshow("Video", frame)
-
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     cap.release()
