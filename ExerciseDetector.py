@@ -35,86 +35,127 @@ lWrist = 16
 rShoulder = 11
 rElbow = 13
 rWrist = 15
+lHip = 24
+rHip = 23
+
+
 
 def getEdges(result):
     # Calculate the left upper arm vector (shoulder to elbow)
     # lShoulder and lElbow are indices defined above
+    if not result or not result.pose_landmarks or len(result.pose_landmarks) == 0:
+        return [None, None]
     edges = []
-    if result and result.pose_landmarks and len(result.pose_landmarks) > 0:
-        landmarks = result.pose_landmarks[0]
+    landmarks = result.pose_landmarks[0]
 
-        shoulder = landmarks[lShoulder]
-        elbow = landmarks[lElbow]
-        wrist = landmarks[lWrist]
-        
-        lUpperArm = (
-            elbow.x - shoulder.x,
-            elbow.y - shoulder.y,
-            elbow.z - shoulder.z
-        )
-        edges.append(lUpperArm)
-        lForearm = (
-            elbow.x - wrist.x,
-            elbow.y - wrist.y,
-            elbow.z - wrist.z
-        )
-        edges.append(lForearm)
-        leftEdge = (
-        wrist.x - shoulder.x,
-        wrist.y - shoulder.y,
-        wrist.z - shoulder.z
-        )
-        
-        shoulder = landmarks[rShoulder]
-        elbow = landmarks[rElbow]
-        wrist = landmarks[rWrist]
-        rUpperArm = (
-            elbow.x - shoulder.x,
-            elbow.y - shoulder.y,
-            elbow.z - shoulder.z
-        )
-        edges.append(rUpperArm)
-        rForearm = (
-            elbow.x - wrist.x,
-            elbow.y - wrist.y,
-            elbow.z - wrist.z
-        )
-        edges.append(rForearm)
-        rightEdge = (
-        wrist.x - shoulder.x,
-        wrist.y - shoulder.y,
-        wrist.z - shoulder.z
-        )
+    shoulder = landmarks[lShoulder]
+    elbow = landmarks[lElbow]
+    wrist = landmarks[lWrist]
+    
+    lUpperArm = (
+        elbow.x - shoulder.x,
+        elbow.y - shoulder.y,
+        elbow.z - shoulder.z
+    )
+    edges.append(lUpperArm)
+    lForearm = (
+        elbow.x - wrist.x,
+        elbow.y - wrist.y,
+        elbow.z - wrist.z
+    )
+    edges.append(lForearm)
+    leftEdge = (
+    wrist.x - shoulder.x,
+    wrist.y - shoulder.y,
+    wrist.z - shoulder.z
+    )
+    
+    shoulder = landmarks[rShoulder]
+    elbow = landmarks[rElbow]
+    wrist = landmarks[rWrist]
+    rUpperArm = (
+        elbow.x - shoulder.x,
+        elbow.y - shoulder.y,
+        elbow.z - shoulder.z
+    )
+    edges.append(rUpperArm)
+    rForearm = (
+        elbow.x - wrist.x,
+        elbow.y - wrist.y,
+        elbow.z - wrist.z
+    )
+    edges.append(rForearm)
+    rightEdge = (
+    wrist.x - shoulder.x,
+    wrist.y - shoulder.y,
+    wrist.z - shoulder.z
+    )
 
-        edges.append(leftEdge)
-        edges.append(rightEdge)
-        return edges
-    return None
+    edges.append(leftEdge)
+    edges.append(rightEdge)
+    return edges
 
 state = "up"
 pushupCount = 0
-def detectPushup(result):
-    #maybe first check if torso/legs are certain degrees from ground to prevent cheating standing up 
+def detectPushup(result):    
     global state, pushupCount
-    angles = getAngles(result)
+    bodyAngles = getBodyAngle(result)
+    angles = getElbowAngles(result)
     leftElbow = angles[0]
     rightElbow = angles[1]
+    #print(bodyAngles)
+    if (bodyAngles[0] > 45 or bodyAngles[1] > 45):
+        print("pushup position")
 
-    
-    if leftElbow >= 150 or rightElbow >= 150:
-        if state == "down":
-            pushupCount += 1
-            state = "up"
-        elif state != "up":
-            state = "up"
-    #down state
-    elif leftElbow < 90 and rightElbow < 90:
-        if state == "up":
-            state = "down"
-    
+        if leftElbow >= 150 or rightElbow >= 150:
+            if state == "down":
+                pushupCount += 1
+                state = "up"
+            elif state != "up":
+                state = "up"
+        #down state
+        elif leftElbow < 110 and rightElbow < 110:
+            if state == "up":
+                state = "down"
+        
     print(state)
 
-def getAngles(result: PoseLandmarkerResult):
+def getBodyAngle(result):
+    #check if torso(shoulder to hip line) x-axis angle is less than 45 degrees
+    
+    #hi gang if youre reading this youre probably wondering why i use dot product to calculate the angle
+    #when i used law of cosines for the elbows and to be honest
+    #i was stupid
+    #i forgot i could also do this
+    if not result or not result.pose_landmarks or len(result.pose_landmarks) == 0:
+        return
+    #i = (1,0,0)
+    j = (0,1,0)
+    landmarks = result.pose_landmarks[0]
+    shoulder = landmarks[lShoulder]
+    hip = landmarks[lHip]
+    leftTorsoEdge = (
+        hip.x - shoulder.x,
+        hip.y - shoulder.y,
+        hip.z - shoulder.z
+    )
+    lTorsoMag = np.linalg.norm(leftTorsoEdge)
+    leftAngle = np.arccos(np.dot(j,leftTorsoEdge)/lTorsoMag)
+
+    shoulder = landmarks[rShoulder]
+    hip = landmarks[rHip]
+    rightTorsoEdge =  (
+        hip.x - shoulder.x,
+        hip.y - shoulder.y,
+        hip.z - shoulder.z
+    )
+    rTorsoMag = np.linalg.norm(rightTorsoEdge)
+    rightAngle = np.arccos(np.dot(j,rightTorsoEdge)/rTorsoMag)
+
+    torsoAxisAngles = [np.degrees(leftAngle),np.degrees(rightAngle)]
+    return torsoAxisAngles
+
+def getElbowAngles(result):
     #check if elbow angle > 160
     edges = getEdges(result)
     
@@ -144,18 +185,6 @@ def getAngles(result: PoseLandmarkerResult):
     
     elbowAngles = [np.degrees(leftAngle),np.degrees(rightAngle)]
     return elbowAngles
-
-# def pushupDownstate(image, result):
-#     # check if dot prod is pos (angle < 90)
-#     edges = getEdges(image, result)
-    
-#     lUpperArm = edges[0]
-#     lForearm = edges[1]
-#     rUpperArm = edges[2]
-#     rForearm = edges[3]
-
-#     #check left arm
-#     return np.dot(lUpperArm, lForearm) >=0 and np.dot(rUpperArm, rForearm) >= 0
 
 
 def draw_landmarks_on_image(image: np.ndarray, result: PoseLandmarkerResult):
