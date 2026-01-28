@@ -34,7 +34,6 @@ POSE_CONNECTIONS = [(11,12),(11,23),(12,24),(23,24), #torso
                     (24,26),(26,28),(28,30),(30,32),(28,32), #left leg
                     (23,25),(25,27),(27,29),(27,31),(29,31)] #right leg
 
-pushupCount = 0
 
 lShoulder = 12
 lElbow = 14
@@ -44,6 +43,10 @@ rElbow = 13
 rWrist = 15
 lHip = 24
 rHip = 23
+lKnee = 26
+rKnee = 25
+lAnkle = 28
+rAnkle = 27
 
 points = 0
 
@@ -52,83 +55,147 @@ def getEdges(result):
     # lShoulder and lElbow are indices defined above
     if not result or not result.pose_landmarks or len(result.pose_landmarks) == 0:
         return [None, None]
-    edges = []
     landmarks = result.pose_landmarks[0]
 
-    shoulder = landmarks[lShoulder]
-    elbow = landmarks[lElbow]
-    wrist = landmarks[lWrist]
+    shoulderL = landmarks[lShoulder]
+    elbowL = landmarks[lElbow]
+    wristL = landmarks[lWrist]
+    shoulderR = landmarks[rShoulder]
+    elbowR = landmarks[rElbow]
+    wristR = landmarks[rWrist]
+    hipL = landmarks[lHip]
+    hipR = landmarks[rHip]
+    kneeL = landmarks[lKnee]
+    kneeR = landmarks[rKnee]
+    ankleL = landmarks[lAnkle]
+    ankleR = landmarks[rAnkle]
     
     lUpperArm = (
-        elbow.x - shoulder.x,
-        elbow.y - shoulder.y,
-        elbow.z - shoulder.z
+        elbowL.x - shoulderL.x,
+        elbowL.y - shoulderL.y,
+        elbowL.z - shoulderL.z
     )
-    edges.append(lUpperArm)
     lForearm = (
-        elbow.x - wrist.x,
-        elbow.y - wrist.y,
-        elbow.z - wrist.z
+        elbowL.x - wristL.x,
+        elbowL.y - wristL.y,
+        elbowL.z - wristL.z
     )
-    edges.append(lForearm)
     leftEdge = (
-    wrist.x - shoulder.x,
-    wrist.y - shoulder.y,
-    wrist.z - shoulder.z
+    wristL.x - shoulderL.x,
+    wristL.y - shoulderL.y,
+    wristL.z - shoulderL.z
     )
     
-    shoulder = landmarks[rShoulder]
-    elbow = landmarks[rElbow]
-    wrist = landmarks[rWrist]
     rUpperArm = (
-        elbow.x - shoulder.x,
-        elbow.y - shoulder.y,
-        elbow.z - shoulder.z
+        elbowR.x - shoulderR.x,
+        elbowR.y - shoulderR.y,
+        elbowR.z - shoulderR.z
     )
-    edges.append(rUpperArm)
     rForearm = (
-        elbow.x - wrist.x,
-        elbow.y - wrist.y,
-        elbow.z - wrist.z
+        elbowR.x - wristR.x,
+        elbowR.y - wristR.y,
+        elbowR.z - wristR.z
     )
-    edges.append(rForearm)
     rightEdge = (
-    wrist.x - shoulder.x,
-    wrist.y - shoulder.y,
-    wrist.z - shoulder.z
+    wristR.x - shoulderR.x,
+    wristR.y - shoulderR.y,
+    wristR.z - shoulderR.z
     )
 
-    edges.append(leftEdge)
-    edges.append(rightEdge)
+    leftTorsoEdge = (
+        hipL.x - shoulderL.x,
+        hipL.y - shoulderL.y,
+        hipL.z - shoulderL.z
+    )
+    rightTorsoEdge =  (
+        hipR.x - shoulderR.x,
+        hipR.y - shoulderR.y,
+        hipR.z - shoulderR.z
+    )
+
+    leftThigh = (
+        hipL.x - kneeL.x,
+        hipL.y - kneeL.y,
+        hipL.z - kneeL.z
+    )
+    rightThigh = (
+        hipR.x - kneeR.x,
+        hipR.y - kneeR.y,
+        hipR.z - kneeR.z
+    )
+    
+    leftShin = (
+        ankleL.x - kneeL.x,
+        ankleL.y - kneeL.y,
+        ankleL.z - kneeL.z
+    )
+    rightShin = (
+        ankleR.x - kneeR.x,
+        ankleR.y - kneeR.y,
+        ankleR.z - kneeR.z
+    )
+    
+    edges = [lUpperArm, lForearm, rUpperArm, 
+             rForearm, leftEdge, rightEdge, 
+             leftTorsoEdge, rightTorsoEdge, 
+             leftThigh, leftShin, 
+             rightThigh, rightShin]
+
     return edges
 
-state = "up"
+pState = "up"
 pushupCount = 0
 def detectPushup(result):    
-    global state, pushupCount, points, showMessage, messageTime
+    global pState, pushupCount, points, showMessage, messageTime
     bodyAngles = getBodyAngle(result)
     angles = getElbowAngles(result)
     leftElbow = angles[0]
     rightElbow = angles[1]
     #print(bodyAngles)
-    if (bodyAngles[0] > 45 or bodyAngles[1] > 45):
-        print("pushup position")
+    if (bodyAngles[0] > 50 or bodyAngles[1] > 50):
+        print("torso down")
 
         if leftElbow >= 150 or rightElbow >= 150:
-            if state == "down":
+            if pState == "down":
                 pushupCount += 1
                 points += 2
                 showMessage = 1
                 messageTime = time.time()
-                state = "up"
-            elif state != "up":
-                state = "up"
+                pState = "up"
+            elif pState != "up":
+                pState = "up"
         #down state
         elif leftElbow < 110 and rightElbow < 110:
-            if state == "up":
-                state = "down"
+            if pState == "up":
+                pState = "down"
         
-    print(state)
+    #print(pState)
+
+squatCount = 0
+sState = "up"
+def detectSquat(result):
+    global sState, squatCount, points, showMessage, messageTime
+    bodyAngles = getBodyAngle(result)
+    angles = getKneeAngles(result)
+    leftKnee = angles[0]
+    rightKnee = angles[1]
+    if (bodyAngles[0] < 50 or bodyAngles[1] < 50):
+        print("torso up")
+        if leftKnee >= 155 or rightKnee >= 155:
+            if sState == "down":
+                squatCount += 1
+                points += 1
+                showMessage = 2
+                messageTime = time.time()
+                sState = "up"
+            elif sState != "up":
+                sState = "up"
+        #down state
+        elif leftKnee < 90 and rightKnee < 90:
+            if sState == "up":
+                sState = "down"
+    print(sState)
+    return
 
 def getBodyAngle(result):
     #check if torso(shoulder to hip line) x-axis angle is less than 45 degrees
@@ -137,33 +204,35 @@ def getBodyAngle(result):
     #when i used law of cosines for the elbows and to be honest
     #i was stupid
     #i forgot i could also do this
-    if not result or not result.pose_landmarks or len(result.pose_landmarks) == 0:
-        return
-    #i = (1,0,0)
     j = (0,1,0)
-    landmarks = result.pose_landmarks[0]
-    shoulder = landmarks[lShoulder]
-    hip = landmarks[lHip]
-    leftTorsoEdge = (
-        hip.x - shoulder.x,
-        hip.y - shoulder.y,
-        hip.z - shoulder.z
-    )
+    edges = getEdges(result)
+    leftTorsoEdge = edges[6]
     lTorsoMag = np.linalg.norm(leftTorsoEdge)
     leftAngle = np.arccos(np.dot(j,leftTorsoEdge)/lTorsoMag)
 
-    shoulder = landmarks[rShoulder]
-    hip = landmarks[rHip]
-    rightTorsoEdge =  (
-        hip.x - shoulder.x,
-        hip.y - shoulder.y,
-        hip.z - shoulder.z
-    )
+    rightTorsoEdge = edges[7]
     rTorsoMag = np.linalg.norm(rightTorsoEdge)
     rightAngle = np.arccos(np.dot(j,rightTorsoEdge)/rTorsoMag)
 
     torsoAxisAngles = [np.degrees(leftAngle),np.degrees(rightAngle)]
     return torsoAxisAngles
+
+def getKneeAngles(result):
+    edges = getEdges(result)
+    leftThigh = edges[8]
+    leftShin = edges[9]
+    rightThigh = edges[10]
+    rightShin = edges[11]
+
+    lThighMag = np.linalg.norm(leftThigh)
+    lShinMag = np.linalg.norm(leftShin)
+    rThighMag = np.linalg.norm(rightThigh)
+    rShinMag = np.linalg.norm(rightShin)
+
+    leftKneeAngle = np.arccos(np.dot(leftThigh,leftShin)/(lThighMag*lShinMag))
+    rightKneeAngle = np.arccos(np.dot(rightThigh,rightShin)/(rThighMag*rShinMag))
+
+    return [np.degrees(leftKneeAngle),np.degrees(rightKneeAngle)]
 
 def getElbowAngles(result):
     #check if elbow angle > 160
@@ -231,7 +300,9 @@ def print_result(result: PoseLandmarkerResult, output_image: mp.Image, timestamp
     latest_annotated_frame = draw_landmarks_on_image(output_image.numpy_view().copy(), result)
    
     detectPushup(result)
-    print(pushupCount)
+    #print(pushupCount)
+    detectSquat(result)
+    print(squatCount)
 
 options = PoseLandmarkerOptions(
     base_options=BaseOptions(model_asset_path=model_path),
@@ -273,6 +344,8 @@ with PoseLandmarker.create_from_options(options) as landmarker:
             if time.time() - messageTime < 1:
                 if showMessage == 1:
                     cv2.putText(displayImg, "Pushup +2" , (250, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+                if showMessage == 2:
+                    cv2.putText(displayImg, "Squat +1" , (250, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
             else:
                 showMessage = False
 
