@@ -1,5 +1,6 @@
 #https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/python#live-stream
 #https://github.com/opencv/opencv
+#https://docs.opencv.org/4.x/dc/d4d/tutorial_py_table_of_contents_gui.html
 
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -9,6 +10,11 @@ import cv2
 import numpy as np
 
 import os
+import time
+
+showMessage = 0
+messageTime = 0
+
 should_quit = False
 latest_annotated_frame = None
 
@@ -29,6 +35,7 @@ POSE_CONNECTIONS = [(11,12),(11,23),(12,24),(23,24), #torso
                     (23,25),(25,27),(27,29),(27,31),(29,31)] #right leg
 
 pushupCount = 0
+
 lShoulder = 12
 lElbow = 14
 lWrist = 16
@@ -38,7 +45,7 @@ rWrist = 15
 lHip = 24
 rHip = 23
 
-
+points = 0
 
 def getEdges(result):
     # Calculate the left upper arm vector (shoulder to elbow)
@@ -98,7 +105,7 @@ def getEdges(result):
 state = "up"
 pushupCount = 0
 def detectPushup(result):    
-    global state, pushupCount
+    global state, pushupCount, points, showMessage, messageTime
     bodyAngles = getBodyAngle(result)
     angles = getElbowAngles(result)
     leftElbow = angles[0]
@@ -110,6 +117,9 @@ def detectPushup(result):
         if leftElbow >= 150 or rightElbow >= 150:
             if state == "down":
                 pushupCount += 1
+                points += 2
+                showMessage = 1
+                messageTime = time.time()
                 state = "up"
             elif state != "up":
                 state = "up"
@@ -228,11 +238,14 @@ options = PoseLandmarkerOptions(
     running_mode=VisionRunningMode.LIVE_STREAM,
     result_callback=print_result)
 
+
 #with PoseLandmarker.create_from_options(options) as landmarker:
   # The landmarker is initialized. Use it here.
   # ...
 
+
 frame_count = 0
+displayImg = None
 with PoseLandmarker.create_from_options(options) as landmarker:
     cap = cv2.VideoCapture(0) # 0 for default webcam
     cap.set(cv2.CAP_PROP_FPS, 15)
@@ -248,11 +261,24 @@ with PoseLandmarker.create_from_options(options) as landmarker:
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
             frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
             landmarker.detect_async(mp_image, frame_timestamp_ms)
+
         # Show the latest annotated frame if available
         if latest_annotated_frame is not None:
-            cv2.imshow("Video", latest_annotated_frame)
+            displayImg = latest_annotated_frame
         else:
-            cv2.imshow("Video", frame)
+            displayImg = frame
+        
+        cv2.putText(displayImg, "Points: " + str(points) , (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+        if showMessage != 0:
+            if time.time() - messageTime < 1:
+                if showMessage == 1:
+                    cv2.putText(displayImg, "Pushup +2" , (250, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+            else:
+                showMessage = False
+
+        
+        cv2.imshow("Video", displayImg)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     cap.release()
